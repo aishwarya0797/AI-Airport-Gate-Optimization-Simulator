@@ -19,7 +19,7 @@ def render_optimization_comparison():
 
     stats = st.session_state.get("optimization_stats", {})
     metrics = st.session_state.get("optimization_metrics", {})
-    naive_summary = st.session_state.get("naive_summary", {})
+    naive_metrics = st.session_state.get("naive_metrics", {})
     comparison = st.session_state.get("comparison", {})
 
     status = stats.get("status", "unknown")
@@ -49,7 +49,7 @@ def render_optimization_comparison():
     c4.metric("Total Walking Distance", f"{stats.get('total_walking_distance', 0):,.0f}")
 
     st.markdown("##### 📊 Naive vs Optimized")
-    fig = MetricsVisualizer.create_optimization_comparison(naive_summary, metrics)
+    fig = MetricsVisualizer.create_optimization_comparison(naive_metrics, metrics)
     st.plotly_chart(fig, width='stretch', config={"displayModeBar": False})
 
     if comparison:

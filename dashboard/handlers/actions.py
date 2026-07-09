@@ -165,6 +165,14 @@ def handle_optimization():
             st.session_state["naive_assignments"] = naive_assignments
             st.session_state["naive_results"] = naive_results
 
+        # calculate_metrics() mutates flight.assigned_gate as a side effect,
+        # so it must run on an isolated copy of the flights -- otherwise
+        # computing "naive" metrics here would clobber the live flights'
+        # optimized gate assignments we just set above.
+        naive_flights_snapshot = copy.deepcopy(flights)
+        naive_metrics_engine = GateOptimizationEngine(naive_flights_snapshot, gates, layout)
+        naive_metrics = naive_metrics_engine.calculate_metrics(naive_assignments)
+
         comparison = engine.compare_allocations(naive_assignments, assignments)
 
         # The optimizer mutates `flight.assigned_gate` on the live flight
@@ -181,6 +189,7 @@ def handle_optimization():
             "optimized_assignments": assignments,
             "optimization_stats": stats,
             "optimization_metrics": metrics,
+            "naive_metrics": naive_metrics,
             "comparison": comparison,
             "conflicts": conflicts,
             "conflict_summary": conflict_summary,
@@ -297,7 +306,7 @@ def handle_export():
 
         if st.session_state.get("optimized"):
             reports["Optimization Report"] = reporter.generate_optimization_report(
-                naive_metrics=st.session_state.get("naive_summary", {}),
+                naive_metrics=st.session_state.get("naive_metrics", {}),
                 optimized_metrics=st.session_state.get("optimization_metrics", {}),
                 improvement_data=st.session_state.get("comparison", {}),
             )
