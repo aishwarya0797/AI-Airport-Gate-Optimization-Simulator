@@ -88,8 +88,31 @@ class SyntheticDataGenerator:
         return f"FL{uuid.uuid4().hex[:8].upper()}"
 
     def generate_aircraft(self) -> Tuple[str, str, int]:
-        """Generate random aircraft type, size, and capacity."""
-        size = random.choice(list(self.aircraft_config.keys()))
+        """
+        Generate random aircraft type, size, and capacity.
+
+        Sizes are weighted by realistic gate capacity (gate count divided by
+        average turnaround time per size) rather than picked uniformly.
+        A flat 1-in-3 chance per size would generate ~33% large aircraft
+        against only 2 of 12 gates (16.7%) able to host them, guaranteeing
+        large flights get bumped regardless of how many flights are
+        generated. Weighting by capacity keeps generated demand roughly in
+        proportion to what the airport's 4 small / 6 medium / 2 large gate
+        mix can actually turn around in a day.
+        """
+        # (gate_count, avg_turnaround_minutes) per size, matching the gate
+        # mix in generate_gates() and the turnaround ranges used below.
+        capacity_profile = {
+            'small': (4, 45),
+            'medium': (6, 67.5),
+            'large': (2, 120),
+        }
+        sizes = list(self.aircraft_config.keys())
+        weights = [
+            capacity_profile.get(s, (1, 60))[0] / capacity_profile.get(s, (1, 60))[1]
+            for s in sizes
+        ]
+        size = random.choices(sizes, weights=weights, k=1)[0]
         ac_config = self.aircraft_config[size]
         aircraft_type = random.choice(ac_config['models'])
         capacity = random.randint(*ac_config['capacity_range'])

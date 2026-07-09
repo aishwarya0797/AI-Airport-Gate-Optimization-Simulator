@@ -106,6 +106,12 @@ class GateOptimizationEngine:
         if not solver:
             return self._fallback_allocation(), {'status': 'Solver not available'}
 
+        # Hard cap on solve time. Without this, SCIP can run indefinitely on
+        # larger instances (300-500 flights) and appear to freeze the app.
+        # If the time limit is hit before proving optimality, OR-Tools still
+        # returns the best feasible solution found so far (status FEASIBLE).
+        solver.SetTimeLimit(30000)  # milliseconds
+
         n_flights = len(self.flight_ids)
         n_gates = len(self.gate_ids)
 
