@@ -35,17 +35,21 @@ class AirportLayout:
         gates = {}
         gate_id = 1
 
-        # Gate sizes distribution
-        gate_sizes = (
-            ['small'] * 4 +
-            ['medium'] * 6 +
-            ['large'] * 2
-        )
+        # Gate sizes distribution: fixed 2:3:1 (small:medium:large) ratio,
+        # scaled to however many gates are actually configured (not a fixed
+        # 12-slot list) so it stays correct for 12-30+ gates alike.
+        total_gates = self.num_terminals * self.gates_per_terminal
+        ratios = {'small': 2, 'medium': 3, 'large': 1}
+        total_ratio = sum(ratios.values())
+        counts = {size: round(total_gates * weight / total_ratio) for size, weight in ratios.items()}
+        diff = total_gates - sum(counts.values())
+        counts['medium'] += diff
+        gate_sizes = ['small'] * counts['small'] + ['medium'] * counts['medium'] + ['large'] * counts['large']
 
         for terminal in range(1, self.num_terminals + 1):
             for i in range(self.gates_per_terminal):
                 gate_name = f"G{gate_id}"
-                gate_size = gate_sizes[gate_id - 1] if gate_id <= len(gate_sizes) else 'medium'
+                gate_size = gate_sizes[gate_id - 1]
 
                 # Calculate coordinates
                 # Layout: terminals arranged vertically, gates horizontally

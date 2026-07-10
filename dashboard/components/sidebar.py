@@ -38,6 +38,12 @@ def render_sidebar() -> Tuple:
             value=st.session_state.get("num_flights_last", config.simulation.default_num_flights),
             help="Number of synthetic flights to generate for this simulation run.",
         )
+        num_gates = st.select_slider(
+            "Number of Gates",
+            options=config.airport.gate_options,
+            value=st.session_state.get("num_gates_last", config.airport.default_total_gates),
+            help="Total gates across 3 terminals (small/medium/large mix scales automatically).",
+        )
         weather = st.selectbox(
             "Weather Condition",
             options=config.weather.conditions,
@@ -90,7 +96,7 @@ def render_sidebar() -> Tuple:
         _render_quick_stats()
 
     return (
-        num_flights, weather, scenario,
+        num_flights, num_gates, weather, scenario,
         generate_btn, allocate_btn, optimize_btn,
         train_ml_btn, predict_btn, export_btn,
     )

@@ -87,29 +87,29 @@ class SyntheticDataGenerator:
         """Generate unique flight ID."""
         return f"FL{uuid.uuid4().hex[:8].upper()}"
 
-    def generate_aircraft(self) -> Tuple[str, str, int]:
+    def generate_aircraft(self, gate_size_counts: Optional[Dict[str, int]] = None) -> Tuple[str, str, int]:
         """
         Generate random aircraft type, size, and capacity.
 
         Sizes are weighted by realistic gate capacity (gate count divided by
         average turnaround time per size) rather than picked uniformly.
         A flat 1-in-3 chance per size would generate ~33% large aircraft
-        against only 2 of 12 gates (16.7%) able to host them, guaranteeing
-        large flights get bumped regardless of how many flights are
-        generated. Weighting by capacity keeps generated demand roughly in
-        proportion to what the airport's 4 small / 6 medium / 2 large gate
-        mix can actually turn around in a day.
+        regardless of how many large gates actually exist, guaranteeing
+        large flights get bumped whenever large gates are scarce. Weighting
+        by capacity keeps generated demand roughly in proportion to what
+        the airport's *currently configured* gate mix can actually turn
+        around in a day.
+
+        `gate_size_counts` should be the number of gates of each size
+        (e.g. {'small': 4, 'medium': 6, 'large': 2}); if not supplied, the
+        default 12-gate mix is assumed for backward compatibility.
         """
-        # (gate_count, avg_turnaround_minutes) per size, matching the gate
-        # mix in generate_gates() and the turnaround ranges used below.
-        capacity_profile = {
-            'small': (4, 45),
-            'medium': (6, 67.5),
-            'large': (2, 120),
-        }
+        gate_size_counts = gate_size_counts or {'small': 4, 'medium': 6, 'large': 2}
+        avg_turnaround = {'small': 45, 'medium': 67.5, 'large': 120}
+
         sizes = list(self.aircraft_config.keys())
         weights = [
-            capacity_profile.get(s, (1, 60))[0] / capacity_profile.get(s, (1, 60))[1]
+            gate_size_counts.get(s, 1) / avg_turnaround.get(s, 60)
             for s in sizes
         ]
         size = random.choices(sizes, weights=weights, k=1)[0]
@@ -122,9 +122,15 @@ class SyntheticDataGenerator:
         self,
         num_flights: int = 100,
         start_date: Optional[datetime] = None,
-        peak_hours: bool = False
+        peak_hours: bool = False,
+        gate_size_counts: Optional[Dict[str, int]] = None
     ) -> List[Flight]:
-        """Generate synthetic flight schedule."""
+        """Generate synthetic flight schedule.
+
+        `gate_size_counts` (e.g. {'small': 4, 'medium': 6, 'large': 2}),
+        when provided, weights generated aircraft sizes to match the
+        actual configured gate mix -- see generate_aircraft() for why.
+        """
         if start_date is None:
             start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -141,7 +147,7 @@ class SyntheticDataGenerator:
             used_flight_numbers.add(flight_number)
 
             # Generate aircraft
-            aircraft_type, aircraft_size, capacity = self.generate_aircraft()
+            aircraft_type, aircraft_size, capacity = self.generate_aircraft(gate_size_counts)
 
             # Generate arrival time (weighted towards peak hours if enabled)
             if peak_hours:
@@ -198,18 +204,38 @@ class SyntheticDataGenerator:
         flights.sort(key=lambda x: x.arrival_time)
         return flights
 
+    def generate_gate_size_distribution(self, total_gates: int) -> List[str]:
+        """
+        Distribute gate sizes across `total_gates` in a fixed 2:3:1
+        (small:medium:large) ratio, rounded so counts always sum exactly
+        to `total_gates`. This keeps the airport's size mix consistent
+        (~33% small / ~50% medium / ~17% large) no matter how many gates
+        are configured (12 up to 30+), instead of a fixed 12-slot list that
+        silently defaulted every extra gate beyond 12 to 'medium'.
+        """
+        ratios = {'small': 2, 'medium': 3, 'large': 1}
+        total_ratio = sum(ratios.values())
+        counts = {size: round(total_gates * weight / total_ratio) for size, weight in ratios.items()}
+
+        # Rounding can leave the counts off by a gate or two; reconcile any
+        # difference against the medium bucket (the largest, safest place).
+        diff = total_gates - sum(counts.values())
+        counts['medium'] += diff
+
+        return ['small'] * counts['small'] + ['medium'] * counts['medium'] + ['large'] * counts['large']
+
     def generate_gates(self, num_terminals: int = 3, gates_per_terminal: int = 4) -> List[Gate]:
         """Generate synthetic gate information."""
         gates = []
         gate_counter = 1
+        total_gates = num_terminals * gates_per_terminal
 
-        # Define gate sizes distribution
-        gate_sizes_distribution = ['small'] * 4 + ['medium'] * 6 + ['large'] * 2
+        gate_sizes_distribution = self.generate_gate_size_distribution(total_gates)
 
         for terminal in range(1, num_terminals + 1):
             for i in range(gates_per_terminal):
                 gate_id = f"G{gate_counter}"
-                gate_size = gate_sizes_distribution[gate_counter - 1] if gate_counter <= len(gate_sizes_distribution) else 'medium'
+                gate_size = gate_sizes_distribution[gate_counter - 1]
 
                 # Calculate coordinates for layout
                 x_coord = 100 + (i * 120)

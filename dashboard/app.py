@@ -32,6 +32,7 @@ from dashboard.pages.overview import (
     render_flight_timeline
 )
 from dashboard.pages.flights import render_flight_table
+from dashboard.pages.live_simulation import render_live_simulation
 
 from dashboard.pages.utilization import (
     render_metrics_row,
@@ -63,11 +64,11 @@ def main():
     render_header()
 
     # Render sidebar and get controls
-    num_flights, weather, scenario, generate_btn, allocate_btn, optimize_btn, train_ml_btn, predict_btn, export_btn = render_sidebar()
+    num_flights, num_gates, weather, scenario, generate_btn, allocate_btn, optimize_btn, train_ml_btn, predict_btn, export_btn = render_sidebar()
 
     # Handle button actions
     if generate_btn:
-        handle_generation(num_flights, weather, scenario)
+        handle_generation(num_flights, num_gates, weather, scenario)
 
     if allocate_btn:
         handle_allocation()
@@ -93,8 +94,9 @@ def main():
     st.markdown("---")
 
     # Main tabs
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    tab1, tab1b, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "Airport Overview",
+        "Live Simulation",
         "Flight Schedule",
         "Gate Utilization",
         "Conflicts",
@@ -109,6 +111,9 @@ def main():
         render_airport_overview()
         st.markdown("---")
         render_flight_timeline()
+
+    with tab1b:
+        render_live_simulation()
 
     with tab2:
         render_flight_table()

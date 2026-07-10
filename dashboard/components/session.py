@@ -23,6 +23,7 @@ def init_session_state():
         "scenario": "Normal Operations",
         "data_generated": False,
         "num_flights_last": 100,
+        "num_gates_last": 12,
 
         # --- Rule-based allocation ------------------------------------------------
         "allocated": False,

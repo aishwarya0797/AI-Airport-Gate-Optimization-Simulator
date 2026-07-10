@@ -12,12 +12,18 @@ class AirportConfig:
     terminals: int = 3
     gates_per_terminal: int = 4
     total_gates: int = 12
+    # Selectable total-gate counts in the sidebar. Terminals stay fixed at 3,
+    # so gates_per_terminal = total_gates // 3 for each option (keeps the
+    # existing coordinate-layout logic, which lays gates out per terminal,
+    # working unchanged for any of these).
+    gate_options: List[int] = field(default_factory=lambda: [12, 15, 18, 21, 24, 27, 30])
+    default_total_gates: int = 12
 
 @dataclass
 class SimulationConfig:
     """Simulation configuration settings."""
-    num_flights_options: List[int] = field(default_factory=lambda: [100, 200, 300, 500])
-    default_num_flights: int = 100
+    num_flights_options: List[int] = field(default_factory=lambda: list(range(60, 241, 20)))
+    default_num_flights: int = 120
     simulation_hours: int = 24
     min_turnaround_time: int = 30  # minutes
     max_turnaround_time: int = 180  # minutes

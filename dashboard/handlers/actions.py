@@ -25,7 +25,7 @@ from ml.explainer import PredictionExplainer
 from reports.report_generator import ReportGenerator
 
 
-def handle_generation(num_flights: int, weather: str, scenario: str):
+def handle_generation(num_flights: int, num_gates: int, weather: str, scenario: str):
     """Generate a brand-new synthetic flight schedule, gates, and layout.
 
     Resets every downstream stage (allocation, optimization, ML, exports)
@@ -35,14 +35,28 @@ def handle_generation(num_flights: int, weather: str, scenario: str):
         generator = SyntheticDataGenerator()
         peak_hours = scenario == "Peak Hour Traffic"
 
-        flights = generator.generate_flight_schedule(num_flights, peak_hours=peak_hours)
+        # Terminals stay fixed at 3; gates-per-terminal scales to hit the
+        # operator's chosen total (12-30). Gates are generated *before*
+        # flights so the aircraft-size mix below can be weighted to match
+        # whatever gate mix actually came out (see generate_aircraft()).
+        terminals = config.airport.terminals
+        gates_per_terminal = max(1, num_gates // terminals)
+
         gates = generator.generate_gates(
-            num_terminals=config.airport.terminals,
-            gates_per_terminal=config.airport.gates_per_terminal,
+            num_terminals=terminals,
+            gates_per_terminal=gates_per_terminal,
         )
         layout = AirportLayout(
-            num_terminals=config.airport.terminals,
-            gates_per_terminal=config.airport.gates_per_terminal,
+            num_terminals=terminals,
+            gates_per_terminal=gates_per_terminal,
+        )
+
+        gate_size_counts = {}
+        for g in gates:
+            gate_size_counts[g.gate_size] = gate_size_counts.get(g.gate_size, 0) + 1
+
+        flights = generator.generate_flight_schedule(
+            num_flights, peak_hours=peak_hours, gate_size_counts=gate_size_counts
         )
         weather_info = generator.generate_weather(scenario=weather)
 
@@ -64,6 +78,7 @@ def handle_generation(num_flights: int, weather: str, scenario: str):
             "scenario": scenario,
             "data_generated": True,
             "num_flights_last": num_flights,
+            "num_gates_last": num_gates,
             # Reset every downstream pipeline stage.
             "allocated": False,
             "rule_based_assignments": {}, "rule_based_results": [], "rule_based_summary": {},
@@ -71,7 +86,7 @@ def handle_generation(num_flights: int, weather: str, scenario: str):
             "conflicts_detected": False, "conflicts": [], "conflict_summary": {},
             "simulation_results": {},
             "optimized": False, "optimized_assignments": {}, "optimization_stats": {},
-            "optimization_metrics": {}, "comparison": {},
+            "optimization_metrics": {}, "naive_metrics": {}, "comparison": {},
             "ml_trained": False, "ml_pipeline": None, "ml_results": {},
             "explainer": None, "explainer_ready": False,
             "predictions": {},
