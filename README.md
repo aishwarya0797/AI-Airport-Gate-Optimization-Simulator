@@ -26,7 +26,7 @@ GateOptimizer Sim is a professional web application designed to help Airport Ope
 - **Optimization Engine**: OR-Tools powered optimization for walking distance and utilization
 - **Machine Learning**: Predictive models for conflicts, gate recommendations, and delays
 - **Explainable AI**: SHAP-based explanations for all AI predictions
-- **Interactive Dashboard**: Professional dark-themed Streamlit interface
+- **Interactive Dashboard**: Professional dark-themed Streamlit interface.
 
 ### Scenarios Supported
 
