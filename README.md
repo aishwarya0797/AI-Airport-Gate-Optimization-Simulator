@@ -123,6 +123,6 @@ GateOptimizerSim/
 
 This application uses 100% synthetic data. No confidential airport operational information is required. The architecture is designed for easy replacement of synthetic data with real airport APIs or databases.
 
-## License
+## License 
 
 Developed as an internship project for Airport Authority of India (AAI).
