@@ -85,7 +85,7 @@ def _static_backdrop(positions, x_range, y_range):
         line=dict(color="#4a5568", width=2, dash="dash"),
     ))
     annotations.append(dict(
-        x=band_right - 10, y=taxiway_y + 10, text="TAXIWAY",
+        x=band_right - 10, y=taxiway_y + 10, text="TAXIWAY — planes drive here between gate and runway",
         showarrow=False, font=dict(size=9, color="#4a5568"), xanchor="right",
     ))
 
@@ -100,7 +100,7 @@ def _static_backdrop(positions, x_range, y_range):
         line=dict(color="#e2e8f0", width=1, dash="dash"),
     ))
     annotations.append(dict(
-        x=band_right - 10, y=runway_y + 26, text="RUNWAY 10/28",
+        x=band_right - 10, y=runway_y + 26, text="RUNWAY — planes take off and land here",
         showarrow=False, font=dict(size=9, color="#a0aec0"), xanchor="right",
     ))
 
@@ -187,6 +187,11 @@ def _flight_positions_at(flights, positions, x_range, t, selected_flight_id):
         else:
             continue
 
+        status_label = {
+            "Inbound": "Inbound (landing soon)",
+            "At Gate": "Parked at gate",
+            "Departing": "Departing (pushed back)",
+        }[status]
         color = STATUS_COLOR.get(status) or SIZE_COLOR.get(f.aircraft_size, "#a0aec0")
         xs.append(x)
         ys.append(y)
@@ -194,8 +199,10 @@ def _flight_positions_at(flights, positions, x_range, t, selected_flight_id):
         sizes.append(SIZE_MARKER.get(f.aircraft_size, 12) + (4 if status != "At Gate" else 0))
         labels.append(f.flight_number)
         hover.append(
-            f"{f.flight_number} ({f.airline})<br>Gate: {f.assigned_gate}<br>"
-            f"Status: {status}<br>{f.aircraft_type} • {f.passenger_count} pax"
+            f"✈️ {f.flight_number} — {f.airline}<br>"
+            f"Gate: {f.assigned_gate}<br>"
+            f"Status: {status_label}<br>"
+            f"{f.aircraft_type} • {f.passenger_count} passengers"
         )
 
         if selected_flight_id and f.flight_id == selected_flight_id:
@@ -352,13 +359,31 @@ def render_live_simulation():
     )
 
     st.markdown("##### 🛬 Live Airport Simulation")
-    legend_cols = st.columns(6)
-    legend_cols[0].markdown("🔵 **Small**")
-    legend_cols[1].markdown("🟢 **Medium**")
-    legend_cols[2].markdown("🟠 **Large**")
-    legend_cols[3].markdown("🟡 **Inbound**")
-    legend_cols[4].markdown("🔴 **Departing**")
-    legend_cols[5].markdown("🚨 **Flashing gate = conflict**")
+    st.caption(
+        "👋 Watch flights move through the airport across a full day — landing, "
+        "parking at their gate, and taking off again — just like a real airport display board."
+    )
+
+    with st.expander("❓ How to read this map (click to expand)", expanded=False):
+        st.markdown(
+            """
+- **The three shaded rows** are the airport's terminals — each holds a row of numbered gates (G1, G2, ...).
+- **A colored dot with a flight number** is a plane. Where it sits tells you what it's doing:
+    - 🟡 **Yellow** = about to land, on its way in
+    - 🔵🟢🟠 **Blue / Green / Orange** = parked at its gate (color just shows the plane's size — small / medium / large)
+    - 🔴 **Red** = has left the gate and is heading out
+- **A gate box that flashes bright red** means that gate is double-booked at that moment — two flights need it at once.
+- **A gold glowing circle** around a plane means it's the flight you picked in the sidebar to get an AI prediction for.
+- **Hover over any plane** to see its flight number, airline, gate, and passenger count.
+- Press **▶ Play** to watch the whole day unfold automatically, or drag the **slider** at the bottom to jump to any time yourself.
+            """
+        )
+
+    st.markdown(
+        "🔵 Small &nbsp;•&nbsp; 🟢 Medium &nbsp;•&nbsp; 🟠 Large &nbsp;plane parked &nbsp;&nbsp;|&nbsp;&nbsp; "
+        "🟡 Landing &nbsp;&nbsp;|&nbsp;&nbsp; 🔴 Taking off &nbsp;&nbsp;|&nbsp;&nbsp; "
+        "🚨 Flashing box = gate conflict"
+    )
 
     if selected_flight_id:
         selected = next((f for f in assigned_flights if f.flight_id == selected_flight_id), None)
