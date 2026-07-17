@@ -6,6 +6,9 @@ the course of the simulated day.
 Draws a proper airport backdrop (terminal bands, gate boxes, taxiway,
 runway) with Plotly shapes/annotations, then layers a frame-based
 animation of labeled flight markers on top (play/pause + scrub slider).
+Gates with an active conflict flash red, and the flight currently
+selected in the sidebar (for ML predictions) gets a glowing halo so it's
+easy to track through the animation.
 """
 
 from datetime import timedelta
@@ -14,6 +17,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from simulation.airport_layout import AirportLayout
+from dashboard.constants import SEVERITY_COLORS
 from dashboard.utils import require_flights
 
 APPROACH_MINUTES = 20   # how long a plane is shown "inbound" before arrival
@@ -22,6 +26,7 @@ DEPARTURE_MINUTES = 20  # how long a plane is shown "departing" after pushback
 SIZE_COLOR = {"small": "#63b3ed", "medium": "#48bb78", "large": "#ed8936"}
 STATUS_COLOR = {"Inbound": "#ecc94b", "At Gate": None, "Departing": "#e53e3e"}
 SIZE_MARKER = {"small": 11, "medium": 14, "large": 18}
+HIGHLIGHT_COLOR = "#f6e05e"
 
 GATE_BOX_W, GATE_BOX_H = 46, 30
 TERMINAL_BAND_PAD = 46
@@ -37,8 +42,8 @@ def _gate_positions(layout: AirportLayout):
     return positions, (min(xs), max(xs)), (min(ys), max(ys))
 
 
-def _airport_backdrop_shapes_and_annotations(layout: AirportLayout, positions, x_range, y_range):
-    """Build the static airport backdrop: terminal bands, gate boxes/labels, taxiway, runway."""
+def _static_backdrop(positions, x_range, y_range):
+    """Build the parts of the backdrop that never change: terminal bands, taxiway, runway."""
     shapes = []
     annotations = []
 
@@ -48,7 +53,6 @@ def _airport_backdrop_shapes_and_annotations(layout: AirportLayout, positions, x
     band_left = x_min - TERMINAL_BAND_PAD - 60
     band_right = x_max + TERMINAL_BAND_PAD
 
-    # Terminal background bands
     for term in terminals:
         term_ys = [y for (_, y, t, _) in positions.values() if t == term]
         band_top = max(term_ys) + TERMINAL_BAND_PAD
@@ -63,27 +67,18 @@ def _airport_backdrop_shapes_and_annotations(layout: AirportLayout, positions, x
             showarrow=False, font=dict(size=11, color="#63b3ed"), xanchor="left",
         ))
 
-    # Gate boxes + labels
+    # Gate ID labels (static; only the gate box fill/border below changes per frame)
     for gid, (gx, gy, term, size) in positions.items():
         color = SIZE_COLOR.get(size, "#a0aec0")
-        shapes.append(dict(
-            type="rect",
-            x0=gx - GATE_BOX_W / 2, x1=gx + GATE_BOX_W / 2,
-            y0=gy - GATE_BOX_H / 2, y1=gy + GATE_BOX_H / 2,
-            fillcolor="rgba(15, 23, 42, 0.9)", line=dict(color=color, width=2),
-            layer="below",
-        ))
         annotations.append(dict(
             x=gx, y=gy - GATE_BOX_H / 2 - 10, text=gid,
             showarrow=False, font=dict(size=9, color=color), xanchor="center",
         ))
-        # Jet bridge stub connecting gate to the taxiway
         shapes.append(dict(
             type="line", x0=gx, x1=gx, y0=gy + GATE_BOX_H / 2, y1=gy + GATE_BOX_H / 2 + 14,
             line=dict(color="#22314a", width=1, dash="dot"),
         ))
 
-    # Taxiway (horizontal line under the lowest terminal band)
     taxiway_y = y_min - TERMINAL_BAND_PAD - 30
     shapes.append(dict(
         type="line", x0=band_left, x1=band_right, y0=taxiway_y, y1=taxiway_y,
@@ -94,7 +89,6 @@ def _airport_backdrop_shapes_and_annotations(layout: AirportLayout, positions, x
         showarrow=False, font=dict(size=9, color="#4a5568"), xanchor="right",
     ))
 
-    # Runway (thick strip further out, with dashed centerline)
     runway_y = taxiway_y - 60
     shapes.append(dict(
         type="rect", x0=band_left, x1=band_right, y0=runway_y - 16, y1=runway_y + 16,
@@ -115,9 +109,58 @@ def _airport_backdrop_shapes_and_annotations(layout: AirportLayout, positions, x
     return shapes, annotations, full_x_range, full_y_range
 
 
-def _flight_positions_at(flights, positions, x_range, t):
-    """Compute marker x/y/color/size/label/hover for every visible flight at time t."""
+def _gate_box_shapes(positions, conflicted_gates, flash_on):
+    """
+    Per-frame gate box shapes. Gates with an active conflict at this frame's
+    time are drawn with a bright, thick border that alternates every other
+    frame (flash_on) so the animation reads as a blinking alert; unaffected
+    gates keep their normal size-colored outline.
+    """
+    shapes = []
+    for gid, (gx, gy, term, size) in positions.items():
+        base_color = SIZE_COLOR.get(size, "#a0aec0")
+        severity = conflicted_gates.get(gid)
+
+        if severity and flash_on:
+            color = SEVERITY_COLORS.get(severity, "#e53e3e")
+            width = 3.5
+            fill = "rgba(229, 62, 62, 0.22)"
+        elif severity:
+            color = base_color
+            width = 2
+            fill = "rgba(15, 23, 42, 0.9)"
+        else:
+            color = base_color
+            width = 2
+            fill = "rgba(15, 23, 42, 0.9)"
+
+        shapes.append(dict(
+            type="rect",
+            x0=gx - GATE_BOX_W / 2, x1=gx + GATE_BOX_W / 2,
+            y0=gy - GATE_BOX_H / 2, y1=gy + GATE_BOX_H / 2,
+            fillcolor=fill, line=dict(color=color, width=width),
+            layer="below",
+        ))
+    return shapes
+
+
+def _active_conflicts_at(conflicts, t):
+    """{gate_id: worst_severity} for conflicts whose time window covers t."""
+    severity_rank = {"critical": 3, "high": 2, "medium": 1, "low": 0}
+    active = {}
+    for c in conflicts:
+        if c.start_time <= t < c.end_time:
+            current = active.get(c.gate_id)
+            if current is None or severity_rank.get(c.severity, 0) > severity_rank.get(current, 0):
+                active[c.gate_id] = c.severity
+    return active
+
+
+def _flight_positions_at(flights, positions, x_range, t, selected_flight_id):
+    """Compute marker x/y/color/size/label/hover for every visible flight at time t,
+    plus a separate halo entry if the selected flight is currently visible."""
     xs, ys, colors, sizes, labels, hover = [], [], [], [], [], []
+    halo_x, halo_y = [], []
     sky_x = x_range[0] + 30
 
     for f in flights:
@@ -155,7 +198,32 @@ def _flight_positions_at(flights, positions, x_range, t):
             f"Status: {status}<br>{f.aircraft_type} • {f.passenger_count} pax"
         )
 
-    return xs, ys, colors, sizes, labels, hover, sum(1 for _ in xs)
+        if selected_flight_id and f.flight_id == selected_flight_id:
+            halo_x.append(x)
+            halo_y.append(y)
+
+    return xs, ys, colors, sizes, labels, hover, halo_x, halo_y
+
+
+def _halo_trace(halo_x, halo_y):
+    return go.Scatter(
+        x=halo_x, y=halo_y, mode="markers",
+        marker=dict(size=32, color=HIGHLIGHT_COLOR, opacity=0.35,
+                    line=dict(color=HIGHLIGHT_COLOR, width=2)),
+        hoverinfo="skip", showlegend=False, name="highlight",
+    )
+
+
+def _flights_trace(xs, ys, colors, sizes, labels, hover):
+    return go.Scatter(
+        x=xs, y=ys, mode="markers+text",
+        marker=dict(size=sizes, color=colors, symbol="circle",
+                    line=dict(color="#0b1220", width=1.5)),
+        text=labels, textposition="top center",
+        textfont=dict(size=9, color="#e2e8f0"),
+        hovertext=hover, hoverinfo="text",
+        showlegend=False, name="flights",
+    )
 
 
 def render_live_simulation():
@@ -172,9 +240,12 @@ def render_live_simulation():
 
     layout = st.session_state.get("layout") or AirportLayout()
     positions, x_range, y_range = _gate_positions(layout)
-    shapes, backdrop_annotations, full_x_range, full_y_range = _airport_backdrop_shapes_and_annotations(
-        layout, positions, x_range, y_range
+    static_shapes, static_annotations, full_x_range, full_y_range = _static_backdrop(
+        positions, x_range, y_range
     )
+
+    conflicts = st.session_state.get("conflicts", [])
+    selected_flight_id = st.session_state.get("selected_flight_id")
 
     col1, col2 = st.columns([1, 1])
     with col1:
@@ -204,38 +275,35 @@ def render_live_simulation():
             showarrow=False, font=dict(size=14, color="#e2e8f0"), xanchor="left", yanchor="top",
         )
 
-    frames = []
-    for t in times:
-        xs, ys, colors, sizes, labels, hover, count = _flight_positions_at(assigned_flights, positions, x_range, t)
-        frames.append(
-            go.Frame(
-                data=[go.Scatter(
-                    x=xs, y=ys, mode="markers+text",
-                    marker=dict(size=sizes, color=colors, symbol="circle",
-                                line=dict(color="#0b1220", width=1.5)),
-                    text=labels, textposition="top center",
-                    textfont=dict(size=9, color="#e2e8f0"),
-                    hovertext=hover, hoverinfo="text",
-                    showlegend=False, name="flights",
-                )],
-                name=t.strftime("%H:%M"),
-                layout=go.Layout(annotations=backdrop_annotations + [clock_annotation(t, count)]),
-            )
+    def build_frame(t, frame_idx):
+        xs, ys, colors, sizes, labels, hover, halo_x, halo_y = _flight_positions_at(
+            assigned_flights, positions, x_range, t, selected_flight_id
+        )
+        conflicted_gates = _active_conflicts_at(conflicts, t)
+        flash_on = (frame_idx % 2 == 0)
+        gate_shapes = _gate_box_shapes(positions, conflicted_gates, flash_on)
+
+        return go.Frame(
+            data=[_halo_trace(halo_x, halo_y), _flights_trace(xs, ys, colors, sizes, labels, hover)],
+            name=t.strftime("%H:%M"),
+            layout=go.Layout(
+                annotations=static_annotations + [clock_annotation(t, len(xs))],
+                shapes=static_shapes + gate_shapes,
+            ),
         )
 
-    init_xs, init_ys, init_colors, init_sizes, init_labels, init_hover, init_count = (
-        _flight_positions_at(assigned_flights, positions, x_range, times[0])
+    frames = [build_frame(t, i) for i, t in enumerate(times)]
+
+    init_xs, init_ys, init_colors, init_sizes, init_labels, init_hover, init_halo_x, init_halo_y = (
+        _flight_positions_at(assigned_flights, positions, x_range, times[0], selected_flight_id)
     )
+    init_gate_shapes = _gate_box_shapes(positions, _active_conflicts_at(conflicts, times[0]), True)
 
     fig = go.Figure(
-        data=[go.Scatter(
-            x=init_xs, y=init_ys, mode="markers+text",
-            marker=dict(size=init_sizes, color=init_colors, symbol="circle",
-                        line=dict(color="#0b1220", width=1.5)),
-            text=init_labels, textposition="top center",
-            textfont=dict(size=9, color="#e2e8f0"),
-            hovertext=init_hover, hoverinfo="text", showlegend=False, name="flights",
-        )],
+        data=[
+            _halo_trace(init_halo_x, init_halo_y),
+            _flights_trace(init_xs, init_ys, init_colors, init_sizes, init_labels, init_hover),
+        ],
         frames=frames,
     )
 
@@ -245,8 +313,8 @@ def render_live_simulation():
         plot_bgcolor="rgba(6, 12, 24, 0.6)",
         height=560,
         margin=dict(l=10, r=10, t=10, b=10),
-        shapes=shapes,
-        annotations=backdrop_annotations + [clock_annotation(times[0], init_count)],
+        shapes=static_shapes + init_gate_shapes,
+        annotations=static_annotations + [clock_annotation(times[0], len(init_xs))],
         xaxis=dict(range=[full_x_range[0], full_x_range[1]], visible=False, fixedrange=True),
         yaxis=dict(range=[full_y_range[0], full_y_range[1]], visible=False, fixedrange=True, scaleanchor="x"),
         updatemenus=[{
@@ -284,12 +352,18 @@ def render_live_simulation():
     )
 
     st.markdown("##### 🛬 Live Airport Simulation")
-    legend_cols = st.columns(5)
+    legend_cols = st.columns(6)
     legend_cols[0].markdown("🔵 **Small**")
     legend_cols[1].markdown("🟢 **Medium**")
     legend_cols[2].markdown("🟠 **Large**")
     legend_cols[3].markdown("🟡 **Inbound**")
     legend_cols[4].markdown("🔴 **Departing**")
+    legend_cols[5].markdown("🚨 **Flashing gate = conflict**")
+
+    if selected_flight_id:
+        selected = next((f for f in assigned_flights if f.flight_id == selected_flight_id), None)
+        if selected:
+            st.caption(f"✨ Highlighting **{selected.flight_number}** (selected in sidebar) with a gold halo when it's on screen.")
 
     st.plotly_chart(fig, width='stretch', config={"displayModeBar": False})
     st.caption(
