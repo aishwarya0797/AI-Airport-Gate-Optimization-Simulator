@@ -5,7 +5,7 @@ Optimization tab: naive vs rule-based vs OR-Tools comparison.
 import streamlit as st
 
 from visualization.charts import MetricsVisualizer
-from dashboard.utils import require_flights
+from dashboard.utils import require_flights, chart_guide
 
 
 def render_optimization_comparison():
@@ -41,12 +41,32 @@ def render_optimization_comparison():
             "⚠️ The solver itself failed to run and the engine fell back to a greedy assignment."
         )
 
+    chart_guide(
+        "**\"Naive\"** = the simplest possible approach: just give each flight the first free, "
+        "size-compatible gate it finds, in arrival order. No real thinking involved.\n\n"
+        "**\"Optimized\"** = the actual OR-Tools solver, which considers every flight and every "
+        "gate together and tries to minimize total passenger walking distance while seating as "
+        "many flights as possible without double-booking any gate.\n\n"
+        "Comparing the two shows you exactly how much smarter the optimizer's plan is than just "
+        "guessing.",
+        label="❓ What's the difference between Naive and Optimized?",
+    )
+
     st.markdown("##### ⚡ Optimization Statistics")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Solve Time", f"{stats.get('solve_time_ms', 0):.0f} ms")
     c2.metric("Flights Seated", f"{stats.get('num_seated', 0)}/{stats.get('num_flights', 0)}")
     c3.metric("Unassigned", f"{num_unassigned}")
     c4.metric("Total Walking Distance", f"{stats.get('total_walking_distance', 0):,.0f}")
+
+    chart_guide(
+        "- **Solve Time**: how long the optimizer took to compute this plan\n"
+        "- **Flights Seated**: how many flights actually got a gate\n"
+        "- **Unassigned**: flights that couldn't be seated anywhere — genuinely too many flights "
+        "for available gates at that moment, not an error\n"
+        "- **Total Walking Distance**: a rough proxy for total passenger walking across all seated "
+        "flights (lower is better)"
+    )
 
     st.markdown("##### 📊 Naive vs Optimized")
     fig = MetricsVisualizer.create_optimization_comparison(naive_metrics, metrics)
@@ -72,3 +92,9 @@ def render_optimization_comparison():
     m1.metric("Avg Walking Distance", f"{metrics.get('average_walking_distance', 0):,.1f}")
     m2.metric("Avg Gate Utilization", f"{metrics.get('average_gate_utilization', 0):.1f}%")
     m3.metric("Total Conflicts", f"{metrics.get('total_conflicts', 0)}")
+
+    chart_guide(
+        "These three numbers summarize the optimizer's final plan on its own (not compared to "
+        "naive): how far passengers walk on average, how efficiently gates are being used across "
+        "the day, and how many conflicts remain in this plan (ideally zero)."
+    )

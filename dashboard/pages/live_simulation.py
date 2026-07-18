@@ -20,8 +20,8 @@ from simulation.airport_layout import AirportLayout
 from dashboard.constants import SEVERITY_COLORS
 from dashboard.utils import require_flights
 
-APPROACH_MINUTES = 20   # how long a plane is shown "inbound" before arrival
-DEPARTURE_MINUTES = 20  # how long a plane is shown "departing" after pushback
+APPROACH_MINUTES = 80   # how long a plane is shown "inbound" before arrival (split across 2 legs)
+DEPARTURE_MINUTES = 80  # how long a plane is shown "departing" after pushback (split across 2 legs)
 
 SIZE_COLOR = {"small": "#63b3ed", "medium": "#48bb78", "large": "#ed8936"}
 STATUS_COLOR = {"Inbound": "#ecc94b", "At Gate": None, "Departing": "#e53e3e"}
@@ -106,7 +106,7 @@ def _static_backdrop(positions, x_range, y_range):
 
     full_y_range = (runway_y - 40, y_max + TERMINAL_BAND_PAD + 30)
     full_x_range = (band_left - 40, band_right + 20)
-    return shapes, annotations, full_x_range, full_y_range
+    return shapes, annotations, full_x_range, full_y_range, taxiway_y, runway_y
 
 
 def _gate_box_shapes(positions, conflicted_gates, flash_on):
@@ -156,12 +156,18 @@ def _active_conflicts_at(conflicts, t):
     return active
 
 
-def _flight_positions_at(flights, positions, x_range, t, selected_flight_id):
+def _flight_positions_at(flights, positions, full_x_range, taxiway_y, runway_y, t, selected_flight_id):
     """Compute marker x/y/color/size/label/hover for every visible flight at time t,
-    plus a separate halo entry if the selected flight is currently visible."""
+    plus a separate halo entry if the selected flight is currently visible.
+
+    Inbound/departing flights are routed through a two-segment path (holding
+    point out past the runway -> taxiway under their gate -> the gate itself)
+    instead of a single straight line, so the motion actually reads as
+    "landing and taxiing in" rather than teleporting.
+    """
     xs, ys, colors, sizes, labels, hover = [], [], [], [], [], []
     halo_x, halo_y = [], []
-    sky_x = x_range[0] + 30
+    holding_x = full_x_range[0] + 30
 
     for f in flights:
         if not f.assigned_gate or f.assigned_gate not in positions:
@@ -169,20 +175,36 @@ def _flight_positions_at(flights, positions, x_range, t, selected_flight_id):
         gate_x, gate_y, _, _ = positions[f.assigned_gate]
         departure_time = f.arrival_time + timedelta(minutes=f.turnaround_time + f.delay)
         approach_start = f.arrival_time - timedelta(minutes=APPROACH_MINUTES)
+        taxi_in_start = f.arrival_time - timedelta(minutes=APPROACH_MINUTES / 2)
+        taxi_out_end = departure_time + timedelta(minutes=DEPARTURE_MINUTES / 2)
         departed_end = departure_time + timedelta(minutes=DEPARTURE_MINUTES)
 
-        if approach_start <= t < f.arrival_time:
-            progress = (t - approach_start).total_seconds() / (APPROACH_MINUTES * 60)
-            x = sky_x + (gate_x - sky_x) * progress
-            y = gate_y
+        if approach_start <= t < taxi_in_start:
+            # Leg 1: inbound from the holding point, along the runway line.
+            progress = (t - approach_start).total_seconds() / ((APPROACH_MINUTES / 2) * 60)
+            x = holding_x + (gate_x - holding_x) * progress
+            y = runway_y
+            status = "Inbound"
+        elif taxi_in_start <= t < f.arrival_time:
+            # Leg 2: taxi up from the runway, along the taxiway, into the gate.
+            progress = (t - taxi_in_start).total_seconds() / ((APPROACH_MINUTES / 2) * 60)
+            x = gate_x
+            y = runway_y + (gate_y - runway_y) * progress
             status = "Inbound"
         elif f.arrival_time <= t < departure_time:
             x, y = gate_x, gate_y
             status = "At Gate"
-        elif departure_time <= t < departed_end:
-            progress = (t - departure_time).total_seconds() / (DEPARTURE_MINUTES * 60)
-            x = gate_x + (sky_x - gate_x) * progress
-            y = gate_y
+        elif departure_time <= t < taxi_out_end:
+            # Leg 1: push back from the gate down to the taxiway.
+            progress = (t - departure_time).total_seconds() / ((DEPARTURE_MINUTES / 2) * 60)
+            x = gate_x
+            y = gate_y + (runway_y - gate_y) * progress
+            status = "Departing"
+        elif taxi_out_end <= t < departed_end:
+            # Leg 2: taxi out along the runway and head off into the distance.
+            progress = (t - taxi_out_end).total_seconds() / ((DEPARTURE_MINUTES / 2) * 60)
+            x = gate_x + (holding_x - gate_x) * progress
+            y = runway_y
             status = "Departing"
         else:
             continue
@@ -247,7 +269,7 @@ def render_live_simulation():
 
     layout = st.session_state.get("layout") or AirportLayout()
     positions, x_range, y_range = _gate_positions(layout)
-    static_shapes, static_annotations, full_x_range, full_y_range = _static_backdrop(
+    static_shapes, static_annotations, full_x_range, full_y_range, taxiway_y, runway_y = _static_backdrop(
         positions, x_range, y_range
     )
 
@@ -257,8 +279,8 @@ def render_live_simulation():
     col1, col2 = st.columns([1, 1])
     with col1:
         step_minutes = st.select_slider(
-            "Time step per frame", options=[10, 15, 20, 30, 60], value=20,
-            help="Smaller steps = smoother motion but more frames to render.",
+            "Time step per frame", options=[10, 15, 20, 30, 60], value=10,
+            help="Smaller steps = smoother, more visible motion but more frames to render.",
         )
     with col2:
         frame_speed = st.select_slider(
@@ -284,7 +306,7 @@ def render_live_simulation():
 
     def build_frame(t, frame_idx):
         xs, ys, colors, sizes, labels, hover, halo_x, halo_y = _flight_positions_at(
-            assigned_flights, positions, x_range, t, selected_flight_id
+            assigned_flights, positions, full_x_range, taxiway_y, runway_y, t, selected_flight_id
         )
         conflicted_gates = _active_conflicts_at(conflicts, t)
         flash_on = (frame_idx % 2 == 0)
@@ -302,7 +324,7 @@ def render_live_simulation():
     frames = [build_frame(t, i) for i, t in enumerate(times)]
 
     init_xs, init_ys, init_colors, init_sizes, init_labels, init_hover, init_halo_x, init_halo_y = (
-        _flight_positions_at(assigned_flights, positions, x_range, times[0], selected_flight_id)
+        _flight_positions_at(assigned_flights, positions, full_x_range, taxiway_y, runway_y, times[0], selected_flight_id)
     )
     init_gate_shapes = _gate_box_shapes(positions, _active_conflicts_at(conflicts, times[0]), True)
 

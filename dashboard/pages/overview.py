@@ -7,7 +7,7 @@ import streamlit as st
 from simulation.airport_layout import AirportLayout
 from visualization.charts import AirportVisualizer, FlightVisualizer
 from dashboard.constants import WEATHER_ICONS
-from dashboard.utils import require_flights, gate_status_map
+from dashboard.utils import require_flights, gate_status_map, chart_guide
 
 
 def render_weather_panel():
@@ -33,6 +33,13 @@ def render_weather_panel():
             "Consider reviewing the AI Predictions tab for at-risk flights."
         )
 
+    chart_guide(
+        "This is today's simulated weather at the airport. It's not just for show — worse "
+        "weather (rain, fog, storms, snow) means planes take longer to turn around and are "
+        "more likely to run late, which feeds directly into the delay predictions on the "
+        "**AI Predictions** tab. ☀️ Clear skies are the best-case scenario for on-time gate turnaround."
+    )
+
 
 def render_airport_overview():
     """Render the interactive gate layout / status map."""
@@ -55,6 +62,17 @@ def render_airport_overview():
     legend_cols[1].markdown("🔴 **Occupied**")
     legend_cols[2].markdown("🟠 **Reserved / Closed**")
 
+    chart_guide(
+        "This is a snapshot of every gate right now, based on whichever plan you last ran "
+        "(**Allocate** or **Optimize**) — not animated over time like the Live Simulation tab. "
+        "- 🟢 **Green** = the gate is free\n"
+        "- 🔴 **Red** = a flight currently has this gate assigned to it\n"
+        "- 🟠 **Orange** = the gate is closed or reserved (for example, during a Gate Closure scenario)\n\n"
+        "Hover over any gate to see which flight is there, if any. If you want to *watch* planes "
+        "move between gates over the course of the day instead of a single snapshot, check the "
+        "**Live Simulation** tab."
+    )
+
 
 def render_flight_timeline():
     """Render the Gantt-style flight timeline grouped by gate."""
@@ -71,3 +89,12 @@ def render_flight_timeline():
 
     fig = FlightVisualizer.create_flight_timeline(flights)
     st.plotly_chart(fig, width='stretch', config={"displayModeBar": False})
+
+    chart_guide(
+        "Think of this like a train schedule board, but for gates. Each horizontal bar is one "
+        "flight sitting at its gate — the left edge is when it arrives, the right edge is when "
+        "it leaves. Read the chart left-to-right as the clock moving through the day.\n\n"
+        "If you see **two bars overlapping on the same gate row** at the same point in time, "
+        "that's a conflict — two flights need the same gate at once. Check the **Conflicts** tab "
+        "for the full breakdown of exactly which ones and why."
+    )

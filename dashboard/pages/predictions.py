@@ -5,7 +5,7 @@ AI Predictions & Explainable AI tab.
 import pandas as pd
 import streamlit as st
 
-from dashboard.utils import require_flights
+from dashboard.utils import require_flights, chart_guide
 
 
 def _risk_color(risk: str) -> str:
@@ -42,6 +42,17 @@ def render_ml_predictions():
     c3.metric("Delay Model RMSE", f"{delay_res.get('rmse', 0):.1f} min",
                help=f"Mean historical delay: {delay_res.get('mean_delay', 0):.1f} min")
 
+    chart_guide(
+        "Three separate machine-learning models get trained here, each answering a different "
+        "question:\n"
+        "- **Conflict Model**: how likely is a gate double-booking? (Accuracy = % of past cases "
+        "it correctly predicted)\n"
+        "- **Gate Recommender**: which gate should a flight get? (Accuracy = % of the time it "
+        "picks the same gate a human/rule-based planner would)\n"
+        "- **Delay Model**: how many minutes will a flight be delayed? (RMSE = typical size of "
+        "its prediction error, in minutes — lower is better)"
+    )
+
     importance = conflict_res.get("feature_importance", {})
     if importance:
         st.markdown("###### Top Conflict-Risk Features")
@@ -49,6 +60,13 @@ def render_ml_predictions():
             pd.Series(importance).sort_values(ascending=False).head(8).rename("Importance").to_frame()
         )
         st.bar_chart(importance_df)
+
+        chart_guide(
+            "This shows which factors the conflict-risk model actually relies on most when "
+            "making its predictions — for example, if \"turnaround_time\" has the tallest bar, "
+            "it means how long a flight sits at its gate is the single biggest driver of conflict "
+            "risk in this data. Taller bar = more influence on the model's decisions."
+        )
 
     st.markdown("---")
     st.markdown("##### 🔮 Selected Flight Prediction")
@@ -87,6 +105,15 @@ def render_ml_predictions():
         unsafe_allow_html=True,
     )
 
+    chart_guide(
+        "This is the AI's forecast for the one flight you picked in the sidebar:\n"
+        "- **Recommended Gate**: which gate the model thinks is the best fit for this flight\n"
+        "- **Recommendation Confidence**: how sure the model is about that gate pick\n"
+        "- **Conflict Probability**: the chance this flight ends up double-booked at that gate\n"
+        "- **Delay Risk banner**: a plain-language risk level plus the predicted delay in minutes\n\n"
+        "To see *why* it made these calls, scroll down to the **Explainable AI** section below."
+    )
+
 
 def render_explainable_ai():
     """Render human-readable SHAP-style explanations for the current prediction."""
@@ -110,6 +137,18 @@ def render_explainable_ai():
     if not explanations:
         st.caption("No explanation data available for this flight.")
         return
+
+    chart_guide(
+        "\"Explainable AI\" (XAI) means the model doesn't just give you an answer — it also "
+        "tells you *why*, in plain language, instead of being a mysterious black box.\n\n"
+        "Each section below covers one prediction and lists the specific factors that pushed "
+        "the model toward its answer:\n"
+        "- 🟢 **Green** = this factor pushed *for* the outcome (e.g. made a conflict more likely)\n"
+        "- 🔴 **Red** = this factor pushed *against* it\n"
+        "- ⚪ **Grey** = neutral / minor effect\n\n"
+        "The progress bar at the bottom of each section is the model's own confidence in that "
+        "specific explanation."
+    )
 
     titles = {
         "gate_selection": "Why this gate?",

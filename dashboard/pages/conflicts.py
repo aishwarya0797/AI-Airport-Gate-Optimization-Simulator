@@ -6,7 +6,7 @@ import streamlit as st
 
 from visualization.charts import ConflictVisualizer
 from dashboard.constants import SEVERITY_ORDER
-from dashboard.utils import require_flights, severity_badge
+from dashboard.utils import require_flights, severity_badge, chart_guide
 
 
 def render_conflict_analysis():
@@ -33,6 +33,18 @@ def render_conflict_analysis():
 
     fig = ConflictVisualizer.create_conflict_summary_chart(conflict_summary)
     st.plotly_chart(fig, width='stretch', config={"displayModeBar": False})
+
+    chart_guide(
+        "A **conflict** means two or more flights need the exact same gate at overlapping "
+        "times — one of them would have nowhere to park. This chart breaks down how many "
+        "conflicts fall into each severity level:\n"
+        "- 🔴 **Critical** — needs immediate attention, high passenger impact\n"
+        "- 🟠 **High** — significant overlap, should be resolved\n"
+        "- 🟡 **Medium** — noticeable but manageable\n"
+        "- 🟢 **Low** — minor, low-impact overlap\n\n"
+        "Running **Optimize** instead of just **Allocate** usually clears most or all of these, "
+        "since the optimizer actively avoids double-booking gates."
+    )
 
     st.markdown("##### 📋 Detailed Conflict Log")
 
@@ -69,3 +81,10 @@ def render_conflict_analysis():
                 with st.expander("💡 Suggested resolutions"):
                     for suggestion in conflict.resolution_suggestions:
                         st.markdown(f"- {suggestion}")
+
+    chart_guide(
+        "Each card below is one specific conflict — exactly which gate, which flights are "
+        "competing for it, and why. Use the severity filter above to focus on just the "
+        "critical/high ones first. If a card has a **💡 Suggested resolutions** section, click "
+        "it open for concrete fixes (e.g. reassigning one flight to a nearby free gate)."
+    )

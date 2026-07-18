@@ -4,7 +4,7 @@ Flight Schedule tab: searchable/filterable flight table.
 
 import streamlit as st
 
-from dashboard.utils import require_flights, flights_to_display_dataframe
+from dashboard.utils import require_flights, flights_to_display_dataframe, chart_guide
 
 
 def render_flight_table():
@@ -58,4 +58,13 @@ def render_flight_table():
         data=csv_bytes,
         file_name="flight_schedule.csv",
         mime="text/csv",
+    )
+
+    chart_guide(
+        "Every flight in this simulation, one row each — like a departures/arrivals board. "
+        "Use the dropdowns above to narrow it down by airline, aircraft size, or status, or "
+        "type part of a flight number to search directly.\n\n"
+        "The **Gate** column shows \"—\" until you run **Allocate** or **Optimize** from the "
+        "sidebar — that's when flights actually get assigned to a gate. The download button "
+        "exports exactly what's currently filtered, not the full list."
     )

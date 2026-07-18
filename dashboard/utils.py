@@ -108,3 +108,15 @@ def safe_mean(values: List[float]) -> float:
     """Mean of a list, defensively returning 0 for empty input."""
     values = list(values)
     return sum(values) / len(values) if values else 0.0
+
+
+def chart_guide(text: str, label: str = "❓ What am I looking at?"):
+    """
+    Render a small collapsible, plain-language explanation directly under a
+    chart or visual. Used everywhere in the app so a first-time visitor can
+    always find out what a given chart/table/map means without needing
+    someone else to explain it, while staying out of the way (collapsed by
+    default) for returning users who already know the app.
+    """
+    with st.expander(label, expanded=False):
+        st.markdown(text)

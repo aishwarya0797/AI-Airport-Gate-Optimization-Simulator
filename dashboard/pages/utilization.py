@@ -7,7 +7,7 @@ import streamlit as st
 
 from simulation.airport_layout import AirportLayout
 from visualization.charts import AirportVisualizer, MetricsVisualizer
-from dashboard.utils import require_flights, safe_mean
+from dashboard.utils import require_flights, safe_mean, chart_guide
 
 
 def render_metrics_row():
@@ -45,6 +45,18 @@ def render_metrics_row():
     )
     c5.metric("Avg Delay", f"{avg_delay:.1f} min")
 
+    if total_flights:
+        chart_guide(
+            "This strip is always visible, no matter which tab you're on — think of it as the "
+            "airport's vital signs at a glance.\n"
+            "- **Total Flights**: how many flights are in this simulation run\n"
+            "- **Gates Assigned**: how many of those flights actually have a gate right now\n"
+            "- **Avg Gate Utilization**: on average, what % of the day each gate is occupied\n"
+            "- **Active Conflicts**: how many gate double-bookings currently exist (see the **Conflicts** tab)\n"
+            "- **Avg Delay**: the average delay across all flights, in minutes",
+            label="❓ What do these numbers mean?",
+        )
+
 
 def render_utilization_charts():
     """Render the gate utilization bar chart and heatmap."""
@@ -79,4 +91,15 @@ def render_utilization_charts():
     st.caption(
         f"Average: {np.mean(values):.1f}% • Peak: {max(values):.1f}% • "
         f"Lowest: {min(values):.1f}% across {len(values)} gates"
+    )
+
+    chart_guide(
+        "**Bar chart (left):** one bar per gate. Taller = that gate is occupied for a bigger "
+        "share of the day. Colors are just a quick-read heat scale: 🔴 red = heavily used "
+        "(over ~65%), 🟠 orange = moderate, 🟢 green = lightly used. Neither extreme is "
+        "automatically \"bad\" — an all-red gate might be overloaded, but an all-green gate "
+        "might just mean spare capacity.\n\n"
+        "**Heatmap (right):** the exact same utilization numbers, but arranged by terminal "
+        "and gate position instead of a list — useful for spotting whether one whole terminal "
+        "is busier than the others at a glance. Darker red = busier, darker blue = quieter."
     )
