@@ -6,6 +6,7 @@ from datetime import datetime
 import streamlit as st
 
 from dashboard.constants import AIRPORT_NAME, AIRPORT_CODE, ORG_NAME
+from dashboard.utils import render_html
 from utils.config import config
 
 
@@ -25,7 +26,7 @@ def render_header():
 
     now = datetime.now().strftime("%A, %d %B %Y  •  %H:%M:%S")
 
-    st.markdown(
+    render_html(
         f"""
         <style>
         @keyframes radar-spin {{
@@ -147,6 +148,5 @@ def render_header():
                 </div>
             </div>
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )

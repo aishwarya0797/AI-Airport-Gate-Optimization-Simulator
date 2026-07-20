@@ -422,6 +422,7 @@ class ConflictVisualizer:
                 values=list(by_type.values()),
                 hole=0.4,
                 marker=dict(colors=px.colors.qualitative.Set2),
+                textinfo='label+percent',
                 textfont=dict(color='white', size=10),
                 showlegend=False
             ), row=1, col=1)
@@ -438,7 +439,8 @@ class ConflictVisualizer:
                 y=values,
                 marker_color=colors,
                 text=values,
-                textposition='auto'
+                textposition='auto',
+                showlegend=False
             ), row=1, col=2)
 
         fig.update_layout(
@@ -446,9 +448,12 @@ class ConflictVisualizer:
             plot_bgcolor='#0d1421',
             paper_bgcolor='#0d1421',
             height=350,
+            margin=dict(t=90),
             annotations=[
-                dict(text="By Type", x=0.18, y=1.05, font=dict(color='#a0aec0'), showarrow=False),
-                dict(text="By Severity", x=0.82, y=1.05, font=dict(color='#a0aec0'), showarrow=False)
+                dict(text="By Type", x=0.18, y=1.12, xref='paper', yref='paper',
+                     font=dict(color='#a0aec0'), showarrow=False),
+                dict(text="By Severity", x=0.82, y=1.12, xref='paper', yref='paper',
+                     font=dict(color='#a0aec0'), showarrow=False)
             ]
         )
 

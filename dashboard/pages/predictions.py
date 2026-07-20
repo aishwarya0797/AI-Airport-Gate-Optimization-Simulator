@@ -5,7 +5,7 @@ AI Predictions & Explainable AI tab.
 import pandas as pd
 import streamlit as st
 
-from dashboard.utils import require_flights, chart_guide
+from dashboard.utils import require_flights, chart_guide, render_html
 
 
 def _risk_color(risk: str) -> str:
@@ -94,15 +94,14 @@ def render_ml_predictions():
     p2.metric("Recommendation Confidence", f"{predictions.get('recommendation_confidence', 0):.1%}")
     p3.metric("Conflict Probability", f"{predictions.get('conflict_probability', 0):.1%}")
 
-    st.markdown(
+    render_html(
         f"""
         <div style="background-color:{_risk_color(risk)}22; border:1px solid {_risk_color(risk)};
                     border-radius:8px; padding:10px 16px; margin-top:8px;">
             <b style="color:{_risk_color(risk)};">Delay Risk: {risk.upper()}</b>
             &nbsp;—&nbsp; Predicted delay: {predictions.get('predicted_delay', 0):.0f} minutes
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
     chart_guide(

@@ -12,12 +12,13 @@ import streamlit as st
 
 from utils.config import config
 from dashboard.constants import SCENARIOS
+from dashboard.utils import render_html
 
 
 def render_sidebar() -> Tuple:
     """Render sidebar controls and return the operator's selections/actions."""
     with st.sidebar:
-        st.markdown(
+        render_html(
             """
             <div style="padding:6px 0 14px 0;">
                 <div style="font-size:1.1rem; font-weight:800; color:#63b3ed;">
@@ -27,8 +28,7 @@ def render_sidebar() -> Tuple:
                     Configure and drive the simulation
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
 
         st.markdown("#### 1️⃣ Flight Schedule")

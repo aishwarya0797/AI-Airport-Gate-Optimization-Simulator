@@ -120,3 +120,20 @@ def chart_guide(text: str, label: str = "❓ What am I looking at?"):
     """
     with st.expander(label, expanded=False):
         st.markdown(text)
+
+
+def render_html(html: str):
+    """
+    Render a multi-line HTML string via st.markdown, safely.
+
+    Streamlit's markdown renderer follows standard Markdown rules: any line
+    indented 4+ spaces is treated as a preformatted code block, not parsed
+    as HTML. Writing HTML with normal Python indentation (which is exactly
+    what every custom-styled component in this app naturally does) silently
+    breaks it -- it renders as literal visible text instead of styled
+    markup, even with unsafe_allow_html=True. This strips leading
+    whitespace from every line first, so indentation in the *source code*
+    never affects what actually renders in the browser.
+    """
+    dedented = "\n".join(line.strip() for line in html.strip("\n").splitlines())
+    st.markdown(dedented, unsafe_allow_html=True)

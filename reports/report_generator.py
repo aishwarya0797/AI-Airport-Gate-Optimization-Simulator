@@ -37,8 +37,15 @@ class ReportData:
     summary: str
 
 
-class PDFReport(FPDF):
-    """Custom PDF generator with dark theme styling."""
+class PDFReport(FPDF if FPDF_AVAILABLE else object):
+    """
+    Custom PDF generator with dark theme styling.
+
+    Subclasses FPDF only when fpdf2 is actually installed. If it's missing,
+    this falls back to a plain placeholder class so simply *importing* this
+    module never crashes -- export_to_pdf() already checks FPDF_AVAILABLE
+    and returns a clear message instead of trying to instantiate this class.
+    """
 
     def __init__(self):
         super().__init__()

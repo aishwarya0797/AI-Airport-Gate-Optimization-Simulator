@@ -6,7 +6,7 @@ import streamlit as st
 
 from visualization.charts import ConflictVisualizer
 from dashboard.constants import SEVERITY_ORDER
-from dashboard.utils import require_flights, severity_badge, chart_guide
+from dashboard.utils import require_flights, severity_badge, chart_guide, render_html
 
 
 def render_conflict_analysis():
@@ -57,7 +57,7 @@ def render_conflict_analysis():
 
     for conflict in sorted(filtered, key=lambda c: SEVERITY_ORDER.index(c.severity)):
         with st.container():
-            st.markdown(
+            render_html(
                 f"""
                 <div style="
                     background-color:#151f33; border:1px solid #2d3748;
@@ -74,8 +74,7 @@ def render_conflict_analysis():
                         {conflict.description}
                     </div>
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
             if conflict.resolution_suggestions:
                 with st.expander("💡 Suggested resolutions"):
