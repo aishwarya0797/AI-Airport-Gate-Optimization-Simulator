@@ -57,6 +57,16 @@ class WeatherConfig:
     """Weather configurations."""
     conditions: List[str] = field(default_factory=lambda: ['Clear', 'Rain', 'Fog', 'Thunderstorm', 'Snow'])
     default_condition: str = 'Clear'
+    # How much each condition scales up generated flight delays, e.g. 0.15
+    # means delays run 15% longer on average under that condition. Applied
+    # in SyntheticDataGenerator.generate_flight_schedule().
+    delay_impact: Dict[str, float] = field(default_factory=lambda: {
+        'Clear': 0.0,
+        'Rain': 0.15,
+        'Fog': 0.20,
+        'Thunderstorm': 0.35,
+        'Snow': 0.30,
+    })
 
 @dataclass
 class AirlineConfig:

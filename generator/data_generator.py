@@ -123,13 +123,21 @@ class SyntheticDataGenerator:
         num_flights: int = 100,
         start_date: Optional[datetime] = None,
         peak_hours: bool = False,
-        gate_size_counts: Optional[Dict[str, int]] = None
+        gate_size_counts: Optional[Dict[str, int]] = None,
+        weather_condition: str = 'Clear'
     ) -> List[Flight]:
         """Generate synthetic flight schedule.
 
         `gate_size_counts` (e.g. {'small': 4, 'medium': 6, 'large': 2}),
         when provided, weights generated aircraft sizes to match the
         actual configured gate mix -- see generate_aircraft() for why.
+
+        `weather_condition` scales generated delays using
+        config.weather.delay_impact -- e.g. 'Thunderstorm' makes delays run
+        ~35% longer on average than 'Clear'. Pass the *actual* condition
+        (e.g. from generate_weather()'s return value), not just the raw
+        sidebar scenario pick, since generate_weather() can randomize the
+        exact condition within a scenario.
         """
         if start_date is None:
             start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -176,9 +184,12 @@ class SyntheticDataGenerator:
             # Generate passenger count (70-95% of capacity)
             passenger_count = int(capacity * random.uniform(0.70, 0.95))
 
-            # Generate potential delay (in minutes)
+            # Generate potential delay (in minutes), then scale it by how
+            # much the current weather condition tends to worsen delays.
             delay = random.choices([0, 0, 0, 5, 10, 15, 30, 45, 60],
                                    weights=[40, 25, 15, 8, 5, 4, 2, 1, 1])[0]
+            weather_multiplier = 1.0 + config.weather.delay_impact.get(weather_condition, 0.0)
+            delay = int(round(delay * weather_multiplier))
 
             # Origin and destination
             origin = random.choice(self.airports)
@@ -255,19 +266,32 @@ class SyntheticDataGenerator:
         return gates
 
     def generate_weather(self, scenario: str = 'Clear') -> Dict:
-        """Generate weather conditions."""
+        """Generate weather conditions.
+
+        `scenario` should be one of config.weather.conditions. Each maps to
+        a set of likely actual conditions (mostly itself, with some
+        realistic bleed into a related condition) -- every condition is
+        handled explicitly so picking e.g. "Thunderstorm" or "Snow" in the
+        sidebar actually biases toward that weather, not silently falling
+        back to a mostly-Clear default.
+        """
         if scenario == 'Rain':
             conditions = ['Rain', 'Rain', 'Rain', 'Thunderstorm']
         elif scenario == 'Fog':
             conditions = ['Fog', 'Fog', 'Fog', 'Clear']
+        elif scenario == 'Thunderstorm':
+            conditions = ['Thunderstorm', 'Thunderstorm', 'Thunderstorm', 'Rain']
+        elif scenario == 'Snow':
+            conditions = ['Snow', 'Snow', 'Snow', 'Fog']
         else:
             conditions = ['Clear', 'Clear', 'Clear', 'Rain']
 
         condition = random.choice(conditions)
 
+        low_visibility_conditions = ('Fog', 'Snow')
         return {
             'condition': condition,
-            'visibility': random.randint(1000, 10000) if condition != 'Fog' else random.randint(200, 2000),
+            'visibility': random.randint(200, 2000) if condition in low_visibility_conditions else random.randint(1000, 10000),
             'wind_speed': random.randint(5, 40),
             'temperature': random.randint(15, 35)
         }

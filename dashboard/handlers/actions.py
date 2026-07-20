@@ -55,10 +55,16 @@ def handle_generation(num_flights: int, num_gates: int, weather: str, scenario: 
         for g in gates:
             gate_size_counts[g.gate_size] = gate_size_counts.get(g.gate_size, 0) + 1
 
-        flights = generator.generate_flight_schedule(
-            num_flights, peak_hours=peak_hours, gate_size_counts=gate_size_counts
-        )
+        # Resolve the actual weather condition first (generate_weather can
+        # randomize within a scenario -- e.g. "Rain" mostly yields Rain but
+        # sometimes Thunderstorm) so the delay multiplier applied below
+        # matches what's actually shown on the Overview tab's weather panel.
         weather_info = generator.generate_weather(scenario=weather)
+
+        flights = generator.generate_flight_schedule(
+            num_flights, peak_hours=peak_hours, gate_size_counts=gate_size_counts,
+            weather_condition=weather_info['condition'],
+        )
 
         scenario_gen = ScenarioGenerator(generator)
         if scenario == "Gate Closure" and len(gates) >= 2:

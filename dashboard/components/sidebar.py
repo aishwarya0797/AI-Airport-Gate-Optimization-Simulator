@@ -44,11 +44,18 @@ def render_sidebar() -> Tuple:
             value=st.session_state.get("num_gates_last", config.airport.default_total_gates),
             help="Total gates across 3 terminals (small/medium/large mix scales automatically).",
         )
+        def _weather_label(condition: str) -> str:
+            if condition == "Clear":
+                return "Clear Skies"
+            impact_pct = round(config.weather.delay_impact.get(condition, 0.0) * 100)
+            return f"{condition} (+{impact_pct}% delays)"
+
         weather = st.selectbox(
-            "Weather Condition",
+            "🌦️ Weather / Disruption",
             options=config.weather.conditions,
             index=config.weather.conditions.index(config.weather.default_condition),
-            help="Weather scenario used to bias generated conditions/delays.",
+            format_func=_weather_label,
+            help="Real weather impact: worse conditions genuinely increase generated flight delays.",
         )
         scenario = st.selectbox(
             "Operational Scenario",
