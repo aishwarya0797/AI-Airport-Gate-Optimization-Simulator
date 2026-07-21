@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dashboard.components.css import load_css
 from dashboard.components.session import init_session_state
 from dashboard.components.header import render_header
-from dashboard.components.sidebar import render_sidebar
+from dashboard.components.sidebar import render_sidebar, render_quick_stats
 from dashboard.handlers.actions import (
     handle_generation,
     handle_allocation,
@@ -26,25 +26,25 @@ from dashboard.handlers.actions import (
     handle_prediction,
     handle_export,
 )
-from dashboard.pages.overview import (
+from dashboard.views.overview import (
     render_weather_panel,
     render_airport_overview,
     render_flight_timeline
 )
-from dashboard.pages.flights import render_flight_table
-from dashboard.pages.live_simulation import render_live_simulation
+from dashboard.views.flights import render_flight_table
+from dashboard.views.live_simulation import render_live_simulation
 
-from dashboard.pages.utilization import (
+from dashboard.views.utilization import (
     render_metrics_row,
     render_utilization_charts
 )
-from dashboard.pages.conflicts import render_conflict_analysis
-from dashboard.pages.optimization import render_optimization_comparison
-from dashboard.pages.predictions import (
+from dashboard.views.conflicts import render_conflict_analysis
+from dashboard.views.optimization import render_optimization_comparison
+from dashboard.views.predictions import (
     render_ml_predictions,
     render_explainable_ai
 )
-from dashboard.pages.reports import render_reports
+from dashboard.views.reports import render_reports
 from dashboard.constants import APP_NAME, APP_ICON
 
 # Page configuration
@@ -61,10 +61,14 @@ init_session_state()
 
 def main():
     """Main application entry point."""
-    render_header()
-
-    # Render sidebar and get controls
-    num_flights, num_gates, weather, scenario, generate_btn, allocate_btn, optimize_btn, train_ml_btn, predict_btn, export_btn = render_sidebar()
+    # Render sidebar controls first (Streamlit needs widgets declared before
+    # it can tell us whether a button was just clicked).
+    (
+        num_flights, num_gates, weather, scenario,
+        generate_btn, allocate_btn, optimize_btn,
+        train_ml_btn, predict_btn, export_btn,
+        quick_stats_placeholder,
+    ) = render_sidebar()
 
     # Handle button actions
     if generate_btn:
@@ -84,6 +88,12 @@ def main():
 
     if export_btn:
         handle_export()
+
+    # Render the header and sidebar quick-stats AFTER the handlers above so
+    # they reflect what just happened (e.g. a fresh flight count right
+    # after clicking Generate) instead of the state from before this click.
+    render_header()
+    render_quick_stats(quick_stats_placeholder)
 
     # Main content area
     st.markdown("---")

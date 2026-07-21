@@ -131,7 +131,7 @@ def render_header():
                         background-color:{status_color}1a; border:1px solid {status_color};
                         color:{status_color}; padding:6px 14px; border-radius:999px;
                         font-size:0.8rem; font-weight:700; letter-spacing:0.04em;">
-                        ● {status_text}
+                        <span class="live-dot" style="margin-right:6px;"></span>{status_text}
                     </div>
                     <div style="color:#a0aec0; font-size:0.85rem; padding-top:4px;">
                         Flights: <b style="color:#e2e8f0;">{len(flights)}</b>

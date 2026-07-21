@@ -190,6 +190,56 @@ def load_css():
     div[data-testid="stAlert"] {
         border: 1px solid #22314a;
     }
+
+    /* --- Shared airport-ops animations ------------------------------------ */
+
+    @keyframes pulse-dot {
+        0%   { box-shadow: 0 0 0 0 rgba(226, 232, 240, 0.5); }
+        70%  { box-shadow: 0 0 0 8px rgba(226, 232, 240, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(226, 232, 240, 0); }
+    }
+    .live-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: pulse-dot 1.8s ease-out infinite;
+    }
+
+    @keyframes button-shimmer {
+        0%   { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+    div[data-testid="stButton"] button[kind="primary"] {
+        background: linear-gradient(
+            100deg,
+            #3182ce 0%, #3182ce 35%, #63b3ed 50%, #3182ce 65%, #3182ce 100%
+        );
+        background-size: 250% 100%;
+        animation: button-shimmer 3.5s linear infinite;
+        border: none;
+    }
+
+    @keyframes scan-sweep {
+        0%   { left: -20%; }
+        100% { left: 100%; }
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        position: relative;
+        overflow: hidden;
+    }
+    .stTabs [data-baseweb="tab-list"]::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: -20%;
+        width: 20%;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #63b3ed, transparent);
+        animation: scan-sweep 5s linear infinite;
+        pointer-events: none;
+    }
 </style>
 """,
         unsafe_allow_html=True,

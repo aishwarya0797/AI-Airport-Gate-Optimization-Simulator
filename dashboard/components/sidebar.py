@@ -100,29 +100,41 @@ def render_sidebar() -> Tuple:
         export_btn = st.button("📤 Generate Export Bundle", width='stretch')
 
         st.markdown("---")
-        _render_quick_stats()
+        quick_stats_placeholder = st.empty()
 
     return (
         num_flights, num_gates, weather, scenario,
         generate_btn, allocate_btn, optimize_btn,
         train_ml_btn, predict_btn, export_btn,
+        quick_stats_placeholder,
     )
 
 
-def _render_quick_stats():
-    """Render a compact snapshot of current simulation state in the sidebar."""
-    st.markdown("#### 📊 Session Snapshot")
-    flights = st.session_state.get("flights", [])
-    gates = st.session_state.get("gates", [])
-    conflicts = st.session_state.get("conflicts", [])
+def render_quick_stats(placeholder=None):
+    """
+    Render a compact snapshot of current simulation state in the sidebar.
 
-    c1, c2 = st.columns(2)
-    c1.metric("Flights", len(flights))
-    c2.metric("Gates", len(gates))
+    Accepts an optional st.empty() placeholder (from render_sidebar) so the
+    caller can fill it *after* running the button handlers -- otherwise
+    this would show last click's numbers instead of the ones from the
+    action that was just triggered, since the sidebar renders before any
+    handler runs in Streamlit's top-to-bottom script execution.
+    """
+    target = placeholder.container() if placeholder is not None else st
 
-    c3, c4 = st.columns(2)
-    c3.metric("Conflicts", len(conflicts))
-    c4.metric(
-        "ML Ready",
-        "Yes" if st.session_state.get("ml_trained") else "No",
-    )
+    with target:
+        st.markdown("#### 📊 Session Snapshot")
+        flights = st.session_state.get("flights", [])
+        gates = st.session_state.get("gates", [])
+        conflicts = st.session_state.get("conflicts", [])
+
+        c1, c2 = st.columns(2)
+        c1.metric("Flights", len(flights))
+        c2.metric("Gates", len(gates))
+
+        c3, c4 = st.columns(2)
+        c3.metric("Conflicts", len(conflicts))
+        c4.metric(
+            "ML Ready",
+            "Yes" if st.session_state.get("ml_trained") else "No",
+        )
