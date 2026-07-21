@@ -63,6 +63,77 @@ class GateOptimizationEngine:
         """Check if flight and gate sizes are compatible."""
         return gate_size in self.size_compat.get(flight_size, [])
 
+    def estimate_next_available_gate(
+        self, assignments: Dict[str, str], unassigned_flight_ids: List[str]
+    ) -> Dict[str, Dict]:
+        """
+        For every flight the optimizer couldn't seat, find the earliest
+        realistic time a size-compatible gate actually frees up, based on
+        the *seated* flights' real occupancy schedule -- not a guess.
+
+        This turns "sorry, no gate" into an actionable answer: which gate to
+        hold for, and how long the wait realistically is.
+
+        Returns {flight_id: {'recommended_gate', 'available_from', 'wait_minutes'}}.
+        A flight with no size-compatible gate at all (shouldn't normally
+        happen given the airport's gate mix) is omitted.
+        """
+        # Build each gate's occupancy schedule from only the flights that
+        # actually got seated in this plan.
+        gate_schedule: Dict[str, List[Tuple[datetime, datetime]]] = {gid: [] for gid in self.gate_ids}
+        for flight_id, gate_id in assignments.items():
+            flight = self.flights[flight_id]
+            end = flight.arrival_time + timedelta(minutes=flight.turnaround_time + flight.delay)
+            gate_schedule.setdefault(gate_id, []).append((flight.arrival_time, end))
+
+        for gate_id in gate_schedule:
+            gate_schedule[gate_id].sort(key=lambda interval: interval[0])
+
+        # Process waitlisted flights earliest-arrival-first, like a real
+        # queue, and reserve each recommended slot in gate_schedule as we go
+        # -- otherwise two different waitlisted flights could both be told
+        # to take the same gate at the same time, which isn't a real answer.
+        ordered_unassigned = sorted(unassigned_flight_ids, key=lambda fid: self.flights[fid].arrival_time)
+
+        waitlist = {}
+        for flight_id in ordered_unassigned:
+            flight = self.flights[flight_id]
+            needed = timedelta(minutes=flight.turnaround_time + flight.delay)
+
+            best_gate = None
+            best_start = None
+
+            for gate_id in self.gate_ids:
+                gate = self.gates[gate_id]
+                if not self._is_compatible(flight.aircraft_size, gate.gate_size):
+                    continue
+
+                candidate_start = flight.arrival_time
+                for occ_start, occ_end in gate_schedule[gate_id]:
+                    if candidate_start + needed <= occ_start:
+                        break  # gap found before this occupied interval -- done
+                    if occ_end > candidate_start:
+                        candidate_start = occ_end  # push past this occupied interval
+
+                if best_start is None or candidate_start < best_start:
+                    best_start = candidate_start
+                    best_gate = gate_id
+
+            if best_gate is not None:
+                wait_minutes = max(0.0, (best_start - flight.arrival_time).total_seconds() / 60)
+                waitlist[flight_id] = {
+                    'recommended_gate': best_gate,
+                    'available_from': best_start,
+                    'wait_minutes': wait_minutes,
+                }
+                # Reserve this slot so later (later-arriving) waitlisted
+                # flights don't also get told to take it.
+                reserved_end = best_start + needed
+                gate_schedule[best_gate].append((best_start, reserved_end))
+                gate_schedule[best_gate].sort(key=lambda interval: interval[0])
+
+        return waitlist
+
     def _calculate_distance_matrix(self) -> np.ndarray:
         """Calculate walking distance for all flight-gate combinations."""
         n_flights = len(self.flight_ids)

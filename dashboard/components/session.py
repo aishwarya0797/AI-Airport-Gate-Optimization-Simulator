@@ -52,6 +52,7 @@ def init_session_state():
         "naive_metrics": {},
         "rule_based_metrics": {},
         "comparison": {},
+        "waitlist": {},
 
         # --- Machine learning -----------------------------------------------------------
         "ml_trained": False,

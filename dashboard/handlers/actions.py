@@ -92,7 +92,7 @@ def handle_generation(num_flights: int, num_gates: int, weather: str, scenario: 
             "conflicts_detected": False, "conflicts": [], "conflict_summary": {},
             "simulation_results": {},
             "optimized": False, "optimized_assignments": {}, "optimization_stats": {},
-            "optimization_metrics": {}, "naive_metrics": {}, "comparison": {},
+            "optimization_metrics": {}, "naive_metrics": {}, "comparison": {}, "waitlist": {},
             "ml_trained": False, "ml_pipeline": None, "ml_results": {},
             "explainer": None, "explainer_ready": False,
             "predictions": {},
@@ -205,6 +205,12 @@ def handle_optimization():
         sim_engine = SimulationEngine(flights, gates, layout)
         simulation_results = sim_engine.run_simulation()
 
+        unassigned_flight_ids = stats.get("unassigned_flight_ids", [])
+        waitlist = (
+            engine.estimate_next_available_gate(assignments, unassigned_flight_ids)
+            if unassigned_flight_ids else {}
+        )
+
         st.session_state.update({
             "optimized": True,
             "optimized_assignments": assignments,
@@ -216,10 +222,12 @@ def handle_optimization():
             "conflict_summary": conflict_summary,
             "conflicts_detected": True,
             "simulation_results": simulation_results,
+            "waitlist": waitlist,
         })
 
         status = stats.get("status", "unknown")
-        st.toast(f"Optimization complete ({status}) • {len(assignments)} flights routed.", icon="⚡")
+        wait_note = f" • {len(waitlist)} flights waitlisted with next-available estimates" if waitlist else ""
+        st.toast(f"Optimization complete ({status}) • {len(assignments)} flights routed.{wait_note}", icon="⚡")
     except Exception as exc:  # noqa: BLE001
         st.error(f"Optimization failed: {exc}")
 
