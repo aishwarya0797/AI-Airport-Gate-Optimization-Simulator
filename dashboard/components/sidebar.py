@@ -11,7 +11,7 @@ from typing import Tuple
 import streamlit as st
 
 from utils.config import config
-from dashboard.constants import SCENARIOS
+from dashboard.constants import SCENARIOS, INDIAN_AIRPORTS, AIRPORT_CODE
 from dashboard.utils import render_html
 
 
@@ -30,6 +30,21 @@ def render_sidebar() -> Tuple:
             </div>
             """
         )
+
+        st.markdown("#### 🏢 Airport")
+        airport_labels = [f"{a['city']} — {a['name']} ({a['code']})" for a in INDIAN_AIRPORTS]
+        default_index = next(
+            (i for i, a in enumerate(INDIAN_AIRPORTS) if a["code"] == AIRPORT_CODE), 0
+        )
+        selected_index = st.selectbox(
+            "Select Airport",
+            options=range(len(INDIAN_AIRPORTS)),
+            index=st.session_state.get("selected_airport_index", default_index),
+            format_func=lambda i: airport_labels[i],
+            help="Switches the airport shown in the header. The simulation itself stays generic/synthetic either way.",
+        )
+        st.session_state["selected_airport_index"] = selected_index
+        st.session_state["selected_airport"] = INDIAN_AIRPORTS[selected_index]
 
         st.markdown("#### 1️⃣ Flight Schedule")
         num_flights = st.select_slider(

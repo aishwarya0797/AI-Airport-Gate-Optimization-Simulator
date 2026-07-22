@@ -9,6 +9,8 @@ from dashboard.constants import AIRPORT_NAME, AIRPORT_CODE, ORG_NAME
 from dashboard.utils import render_html
 from utils.config import config
 
+CLOCK_ELEMENT_ID = "gos-live-clock"
+
 
 def render_header():
     """Render the airport operations control-center header banner."""
@@ -17,6 +19,10 @@ def render_header():
     conflicts = st.session_state.get("conflicts", [])
     data_generated = st.session_state.get("data_generated", False)
 
+    selected_airport = st.session_state.get("selected_airport")
+    airport_name = selected_airport["name"] if selected_airport else AIRPORT_NAME
+    airport_code = selected_airport["code"] if selected_airport else AIRPORT_CODE
+
     if data_generated:
         status_color = "#e53e3e" if conflicts else "#48bb78"
         status_text = f"{len(conflicts)} ACTIVE CONFLICTS" if conflicts else "ALL SYSTEMS NOMINAL"
@@ -24,6 +30,8 @@ def render_header():
         status_color = "#a0aec0"
         status_text = "AWAITING FLIGHT DATA"
 
+    # Server-rendered fallback; the invisible JS ticker below takes over and
+    # updates this same element every second using the browser's own clock.
     now = datetime.now().strftime("%A, %d %B %Y  •  %H:%M:%S")
 
     render_html(
@@ -98,6 +106,21 @@ def render_header():
             text-transform: uppercase;
             margin-top: 2px;
         }}
+
+        /* --- Mobile layout (phones/narrow tablets) -- desktop is untouched --- */
+        @media (max-width: 768px) {{
+            .gos-header {{ padding: 14px 16px; }}
+            .gos-title {{ font-size: 0.95rem; }}
+            .gos-subtitle {{ font-size: 0.65rem; }}
+            .gos-header-content > div:first-child {{ gap: 8px !important; }}
+            .gos-header-content [style*="text-align:right"] {{ text-align: left !important; }}
+            .gos-header-content [style*="font-size:0.95rem"] {{ font-size: 0.8rem !important; }}
+            .gos-header-content [style*="font-size:0.8rem"][id="{CLOCK_ELEMENT_ID}"] {{ font-size: 0.7rem !important; }}
+            .gos-header-content [style*="gap:24px"] {{ gap: 10px !important; }}
+            .gos-radar-decor {{ width: 160px; height: 160px; top: -50px; right: -50px; }}
+            .gos-radar-ring.r3 {{ width: 150px; height: 150px; }}
+            .gos-radar-sweep {{ width: 150px; height: 150px; }}
+        }}
         </style>
 
         <div class="gos-header">
@@ -121,9 +144,9 @@ def render_header():
                     </div>
                     <div style="text-align:right;">
                         <div style="font-size:0.95rem; color:#e2e8f0; font-weight:600;">
-                            {AIRPORT_NAME} ({AIRPORT_CODE})
+                            {airport_name} ({airport_code})
                         </div>
-                        <div style="font-size:0.8rem; color:#8fa5c0;">{now}</div>
+                        <div id="{CLOCK_ELEMENT_ID}" style="font-size:0.8rem; color:#8fa5c0;">{now}</div>
                     </div>
                 </div>
                 <div style="display:flex; gap:24px; margin-top:16px; flex-wrap:wrap;">
@@ -150,3 +173,30 @@ def render_header():
         </div>
         """
     )
+
+    # Invisible helper component: its only job is to run a setInterval JS
+    # loop that reaches into the main page (window.parent.document) and
+    # updates the clock element above every second using the *browser's*
+    # own real-time clock -- a true ticking clock, not a value that only
+    # updates when Streamlit reruns the script.
+    components_html = f"""
+        <style>html, body {{ margin: 0; padding: 0; background: transparent; }}</style>
+        <script>
+        const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        const MONTHS = ['January','February','March','April','May','June','July',
+                         'August','September','October','November','December'];
+        function pad(n) {{ return n < 10 ? '0' + n : n; }}
+        function tickGosClock() {{
+            const el = window.parent.document.getElementById('{CLOCK_ELEMENT_ID}');
+            if (!el) return;
+            const now = new Date();
+            const dateStr = DAYS[now.getDay()] + ', ' + pad(now.getDate()) + ' ' +
+                             MONTHS[now.getMonth()] + ' ' + now.getFullYear();
+            const timeStr = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+            el.innerText = dateStr + '  \u2022  ' + timeStr;
+        }}
+        setInterval(tickGosClock, 1000);
+        tickGosClock();
+        </script>
+        """
+    st.iframe(components_html, height=1)

@@ -21,6 +21,8 @@ def init_session_state():
         "generator": None,
         "weather_info": {},
         "scenario": "Normal Operations",
+        "selected_airport_index": 0,
+        "selected_airport": None,
         "data_generated": False,
         "num_flights_last": 100,
         "num_gates_last": 12,

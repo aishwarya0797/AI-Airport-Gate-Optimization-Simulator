@@ -240,6 +240,45 @@ def load_css():
         animation: scan-sweep 5s linear infinite;
         pointer-events: none;
     }
+
+    /* --- Mobile layout (phones/narrow tablets) -- desktop is untouched --- */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 0.8rem;
+            padding-left: 0.7rem;
+            padding-right: 0.7rem;
+        }
+
+        /* KPI metric cards: smaller numbers/labels so they don't overflow
+           their card width on narrow screens. */
+        div[data-testid="stMetricValue"] {
+            font-size: 1.3rem !important;
+        }
+        div[data-testid="stMetricLabel"] {
+            font-size: 0.72rem !important;
+        }
+        div[data-testid="stMetricDelta"] {
+            font-size: 0.7rem !important;
+        }
+
+        /* Tabs: smaller labels and tighter padding so all 8 tabs fit
+           without excessive horizontal scrolling. */
+        .stTabs [data-baseweb="tab"] {
+            font-size: 0.78rem !important;
+            padding: 6px 10px !important;
+        }
+
+        /* Sidebar: slightly tighter section headers on small screens. */
+        section[data-testid="stSidebar"] h4 {
+            font-size: 0.85rem !important;
+        }
+
+        /* Dataframes/tables: allow horizontal scroll instead of squeezing
+           columns unreadably thin. */
+        div[data-testid="stDataFrame"] {
+            font-size: 0.8rem;
+        }
+    }
 </style>
 """,
         unsafe_allow_html=True,
